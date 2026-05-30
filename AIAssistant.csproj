@@ -1,0 +1,73 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <AssemblyName>AIAssistant</AssemblyName>
+    <Version>1.1.0</Version>
+    <LangVersion>10.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <GamePath>D:\steam\steamapps\common\Stardew Valley</GamePath>
+    <ModDeployPath>$(GamePath)\Mods\AIAssistant</ModDeployPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="StardewModdingAPI">
+      <HintPath>D:\steam\steamapps\common\Stardew Valley\StardewModdingAPI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="SMAPI.Toolkit.CoreInterfaces">
+      <HintPath>D:\steam\steamapps\common\Stardew Valley\smapi-internal\SMAPI.Toolkit.CoreInterfaces.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="StardewValley">
+      <HintPath>D:\steam\steamapps\common\Stardew Valley\Stardew Valley.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="HarmonyLib">
+      <HintPath>D:\steam\steamapps\common\Stardew Valley\smapi-internal\0Harmony.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="MonoGame.Framework">
+      <HintPath>D:\steam\steamapps\common\Stardew Valley\MonoGame.Framework.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="xTile">
+      <HintPath>D:\steam\steamapps\common\Stardew Valley\xTile.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="StardewValley.GameData">
+      <HintPath>D:\steam\steamapps\common\Stardew Valley\StardewValley.GameData.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <Target Name="DeployMod" AfterTargets="Build">
+    <!-- Clean old files first -->
+    <RemoveDir Directories="$(ModDeployPath)\i18n" Condition="Exists('$(ModDeployPath)\i18n')" />
+    
+    <!-- Copy DLL + PDB -->
+    <Copy SourceFiles="$(OutputPath)AIAssistant.dll" DestinationFolder="$(ModDeployPath)" SkipUnchangedFiles="false" />
+    <Copy SourceFiles="$(OutputPath)AIAssistant.pdb" DestinationFolder="$(ModDeployPath)" SkipUnchangedFiles="false" Condition="Exists('$(OutputPath)AIAssistant.pdb')" />
+    
+    <!-- Copy manifest -->
+    <Copy SourceFiles="$(MSBuildProjectDirectory)\manifest.json" DestinationFolder="$(ModDeployPath)" SkipUnchangedFiles="false" />
+    
+    <!-- Copy i18n -->
+    <MakeDir Directories="$(ModDeployPath)\i18n" />
+    <Copy SourceFiles="$(MSBuildProjectDirectory)\i18n\default.json" DestinationFolder="$(ModDeployPath)\i18n" SkipUnchangedFiles="false" />
+    
+    <!-- Sync source files from project to Mods folder -->
+    <ItemGroup>
+      <SourceFiles Include="$(MSBuildProjectDirectory)\*.cs" />
+      <SourceFiles Include="$(MSBuildProjectDirectory)\*.csproj" />
+    </ItemGroup>
+    <Copy SourceFiles="@(SourceFiles)" DestinationFolder="$(ModDeployPath)" SkipUnchangedFiles="false" />
+    
+    <Message Text="=== Deployed AIAssistant v$(Version) to $(ModDeployPath) ===" Importance="high" />
+  </Target>
+
+</Project>

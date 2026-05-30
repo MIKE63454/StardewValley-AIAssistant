@@ -1,0 +1,12 @@
+﻿{
+    "Name":  "AI Assistant",
+    "Author":  "Codex",
+    "Version":  "1.1.0",
+    "Description":  "AI-powered chat companion for Stardew Valley. Supports OpenAI, Claude, Gemini, Azure \u0026 more. Press K to configure, chat naturally with AI that knows your game state. Features: multi-provider, game context injection, daily tips, chat commands, multiplayer sync, streaming replies, wiki cache, auto-summarize.",
+    "UniqueID":  "Codex.AIAssistant",
+    "EntryDll":  "AIAssistant.dll",
+    "MinimumApiVersion":  "4.0.0",
+    "UpdateKeys":  [
+
+                   ]
+}
