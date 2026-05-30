@@ -217,7 +217,18 @@ namespace AIAssistant
                     if (!string.IsNullOrEmpty(fish)) { p.Add(""); p.Add("=== 今日可钓鱼 ==="); p.Add(fish); }
                 }
 
-                if (Game1.IsMultiplayer) p.Add("联机：" + Game1.getOnlineFarmers().Count + "人在线");
+                // Multiplayer players
+                if (Game1.IsMultiplayer)
+                {
+                    var players = Game1.getOnlineFarmers();
+                    p.Add("联机：" + players.Count + "人在线。玩家列表：");
+                    foreach (var pl in players)
+                    {
+                        var hostTag = pl.IsMainPlayer ? " [房主]" : "";
+                        if (pl.UniqueMultiplayerID != f.UniqueMultiplayerID)
+                            p.Add("  " + pl.Name + hostTag + " 位置:" + (pl.currentLocation?.Name ?? "?") + " 体力:" + pl.stamina + "/" + pl.maxStamina);
+                    }
+                }
                 return string.Join("\n", p);
             }
             catch (Exception ex) { return "[状态读取失败: " + ex.Message + "]"; }
