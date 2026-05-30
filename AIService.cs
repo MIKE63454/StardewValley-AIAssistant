@@ -212,6 +212,34 @@ namespace AIAssistant
                     var fest = GetUpcomingFestival();
                     if (!string.IsNullOrEmpty(fest)) { p.Add(""); p.Add("=== 即将到来的节日 ==="); p.Add(fest); }
 
+                    // Today events
+                    var todayEv = GetTodayEvents();
+                    if (!string.IsNullOrEmpty(todayEv)) { p.Add(""); p.Add("=== 今天 ==="); p.AddRange(todayEv.Split('\n')); }
+
+                    // Buffs
+                    var buffs = GetActiveBuffs();
+                    if (!string.IsNullOrEmpty(buffs)) { p.Add(""); p.Add("=== 当前增益 ==="); p.Add(buffs); }
+
+                    // Professions
+                    var profs = GetProfessions();
+                    if (!string.IsNullOrEmpty(profs)) { p.Add(""); p.Add("=== 职业技能 ==="); p.Add(profs); }
+
+                    // Unlocks
+                    var unlocks = GetUnlocks();
+                    if (!string.IsNullOrEmpty(unlocks)) { p.Add(""); p.Add("=== 已解锁 ==="); p.Add(unlocks); }
+
+                    // TV
+                    var tv = GetTvInfo();
+                    if (!string.IsNullOrEmpty(tv)) { p.Add(""); p.Add("=== 电视 ==="); p.Add(tv); }
+
+                    // Recipes
+                    var recipes = GetRecipesKnown();
+                    if (!string.IsNullOrEmpty(recipes)) { p.Add(""); p.Add("=== 配方 ==="); p.Add(recipes); }
+
+                    // Guild
+                    var guild = GetGuildProgress();
+                    if (!string.IsNullOrEmpty(guild)) { p.Add(""); p.Add("=== 冒险家公会 ==="); p.Add(guild); }
+
                     // Fish available today
                     var fish = GetFishAvailable(loc);
                     if (!string.IsNullOrEmpty(fish)) { p.Add(""); p.Add("=== 今日可钓鱼 ==="); p.Add(fish); }
@@ -805,6 +833,19 @@ private static string GetSkillProgress(Farmer f)
                 };
             } catch { return ""; }
         }
+        private static string GetTodayEvents() { try { var p = new List<string>(); int d = Game1.dayOfMonth; string s = Game1.currentSeason ?? "spring"; foreach (var n in Utility.getAllCharacters()) { try { if (n != null && n.IsVillager && n.Birthday_Season?.Equals(s, StringComparison.OrdinalIgnoreCase) == true && n.Birthday_Day == d) p.Add("生日:" + (n.displayName ?? n.Name)); } catch { } } var fs = new Dictionary<string,string>{["spring 13"]="复活节",["spring 24"]="花舞节",["summer 11"]="夏威夷宴会",["summer 28"]="月光水母舞",["fall 16"]="星露谷展览会",["fall 27"]="万灵节",["winter 8"]="冰雪节",["winter 25"]="冬日盛宴"}; if(fs.TryGetValue(s+" "+d,out var f)) p.Add("节日:"+f); return p.Count>0?"今天:"+string.Join(" | ",p):""; } catch { return ""; } }
+
+        private static string GetActiveBuffs() { try { var f=Game1.player; if(f==null)return""; var parts=new List<string>(); var ids=new[]{0,1,2,4,5,6,7,8,9,10}; var names=new[]{"农耕","钓鱼","采矿","速度","运气","采集","战斗","防御","攻击","磁性"}; try{var bo=f.GetType().GetField("buffs")?.GetValue(f); var arr=bo?.GetType().GetField("buffs")?.GetValue(bo) as int[]; if(arr!=null) for(int i=0;i<ids.Length&&i<names.Length;i++) if(arr.Length>ids[i]&&arr[ids[i]]!=0) parts.Add(names[i]+(arr[ids[i]]>0?"+":"")+arr[ids[i]]); }catch{} return parts.Count>0?"增益:"+string.Join(",",parts):""; } catch { return ""; } }
+
+        private static string GetProfessions() { try { var f=Game1.player; if(f?.professions==null||f.professions.Count==0)return""; var names=new Dictionary<int,string>{{0,"农场主"},{1,"矿工"},{2,"地质学家"},{3,"采集者"},{4,"护林人"},{5,"渔夫"},{6,"捕猎者"},{7,"战士"},{8,"侦查员"},{9,"工匠"},{10,"植物学家"},{11,"追踪者"},{12,"垂钓者"},{13,"海盗"},{14,"诱捕大师"},{15,"树农"},{16,"野蛮人"},{17,"防御者"},{18,"矿脉汲取者"}}; var parts=new List<string>(); foreach(int pid in f.professions) if(names.TryGetValue(pid,out var n)) parts.Add(n); return parts.Count>0?"职业:"+string.Join(",",parts):""; } catch { return ""; } }
+
+        private static string GetUnlocks() { try { var f=Game1.player; if(f==null)return""; var p=new List<string>(); if(f.mailReceived.Contains("ccCraftsRoom")) p.Add("工艺室"); if(f.mailReceived.Contains("ccPantry")) p.Add("茶水间"); if(f.mailReceived.Contains("ccFishTank")) p.Add("鱼缸"); if(f.mailReceived.Contains("ccBoilerRoom")) p.Add("锅炉室"); if(f.mailReceived.Contains("ccBulletin")) p.Add("布告栏"); if(f.mailReceived.Contains("ccVault")) p.Add("金库"); if(f.hasRustyKey) p.Add("下水道"); if(f.hasSkullKey) p.Add("沙漠矿洞"); if(f.hasClubCard) p.Add("姜岛"); if(Game1.getLocationFromName("Greenhouse")!=null) p.Add("温室"); return p.Count>0?"解锁:"+string.Join(",",p):""; } catch { return ""; } }
+
+        private static string GetTvInfo() { try { int dow=(int)Game1.dayOfMonth%7; var ch=new List<string>{"天气","占卜"}; if(dow==0) ch.Add("酱料女王(新菜)"); else if(dow==3) ch.Add("酱料女王(重播)"); if(dow==1||dow==4) ch.Add("农牧技巧"); return "电视:"+string.Join(",",ch); } catch { return ""; } }
+
+        private static string GetRecipesKnown() { try { var f=Game1.player; if(f==null)return""; int c=0,cr=0; try{if(f.cookingRecipes!=null) c=f.cookingRecipes.Count(); if(f.craftingRecipes!=null) cr=f.craftingRecipes.Count();}catch{} return "烹饪"+c+"种 制造"+cr+"种"; } catch { return ""; } }
+
+        private static string GetGuildProgress() { try { var f=Game1.player; if(f==null||f.stats==null)return""; var goals=new[]{0,1,2,3,4}; var names=new[]{"史莱姆","虚空精华","蝙蝠","骷髅","洞穴昆虫"}; var targets=new[]{1000,150,200,50,125}; var a=new List<string>(); try{var mk=f.stats.GetType().GetProperty("specificMonstersKilled")?.GetValue(f.stats) as System.Collections.IDictionary; if(mk!=null) for(int i=0;i<goals.Length;i++){ if(mk.Contains(goals[i])){int k=Convert.ToInt32(mk[goals[i]]); if(k<targets[i]) a.Add(names[i]+":"+k+"/"+targets[i]); }}}catch{} return a.Count>0?"公会:"+string.Join(",",a):""; } catch { return ""; } }
     }
 
     public class ChatMessage
