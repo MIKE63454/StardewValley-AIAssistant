@@ -124,7 +124,7 @@ namespace AIAssistant
                 // === Tier 1: Always included ===
                 p.Add("=== 基本信息 ===");
                 p.Add("日期：" + s + "第" + f.dayOfMonthForSaveGame + "天，第" + f.yearForSaveGame + "年");
-                p.Add("天气：" + GetWeatherName() + " | 运势：" + GetLuckString());
+                p.Add("天气：" + GetWeatherName() + " | 明日：" + GetTomorrowWeather() + " | 周" + GetDayOfWeek() + " | 运势：" + GetLuckString());
                 p.Add("时间：" + Game1.getTimeOfDayString(Game1.timeOfDay));
                 p.Add("金币：" + f.Money.ToString("n0") + "g | 总收入：" + f.totalMoneyEarned.ToString("n0") + "g");
                 if (loc != null)
@@ -161,6 +161,7 @@ namespace AIAssistant
                     // World: NPCs in current location
                     var worldNPCs = GetNPCsInLocation(loc);
                     if (worldNPCs.Count > 0) { p.Add("当前地图NPC：" + string.Join("、", worldNPCs)); }
+                    var an = GetAllNPCLocations(); if (an.Count > 0) { p.Add("全图NPC位置："); p.AddRange(an); }
 
                     // Shops open?
                     var shops = GetShopsOpen();
@@ -234,6 +235,8 @@ namespace AIAssistant
 
                     // Recipes
                     var recipes = GetRecipesKnown();
+                    var wl = GetWalletContext(); if (!string.IsNullOrEmpty(wl)) { p.Add(""); p.Add("=== 钱包 ==="); p.Add(wl); }
+                    var cs = GetCollectionsSummary(); if (!string.IsNullOrEmpty(cs)) { p.Add(""); p.Add("=== 收集进度 ==="); p.Add(cs); }
                     if (!string.IsNullOrEmpty(recipes)) { p.Add(""); p.Add("=== 配方 ==="); p.Add(recipes); }
 
                     // Guild
@@ -733,6 +736,8 @@ private static string GetSkillProgress(Farmer f)
             return r;
         }
 
+        private static List<string> GetAllNPCLocations() { var r = new List<string>(); try { foreach (var loc in Game1.locations) { if (loc == null) continue; var chars = loc.GetType().GetProperty("characters")?.GetValue(loc) as System.Collections.IEnumerable; if (chars == null) continue; var ns = new List<string>(); foreach (var c in chars) if (c is NPC npc && npc.IsVillager) ns.Add(npc.displayName ?? npc.Name); if (ns.Count > 0) r.Add("  " + (loc.DisplayName ?? loc.Name) + ": " + string.Join(", ", ns)); } } catch { } return r; }
+
         private static List<string> GetShopsOpen()
         {
             var r = new List<string>();
@@ -790,6 +795,11 @@ private static string GetSkillProgress(Farmer f)
                 return "晴天";
             } catch { return "晴天"; }
         }
+        private static string GetTomorrowWeather() { try { var fld = typeof(Game1).GetField("weatherForTomorrow"); if (fld != null) { var v = fld.GetValue(null); int w = v is int i ? i : 0; if (w == 4) return "雷暴"; if (w == 1 || w == 3) return "下雨"; if (w == 5 || w == 6) return "下雪"; } return "晴天"; } catch { return "?"; } }
+        private static string GetDayOfWeek() { try { var ds = new[]{"一","二","三","四","五","六","日"}; return ds[(Game1.dayOfMonth-1)%7]; } catch { return "?"; } }
+        private static string GetWalletContext() { try { var f = Game1.player; if (f == null) return ""; var items = new List<string>(); if (f.hasSkullKey) items.Add("骷髅钥匙"); if (f.hasRustyKey) items.Add("下水道钥匙"); if (f.hasClubCard) items.Add("赌场会员"); if (f.hasSpecialCharm) items.Add("特殊魅力"); if (f.hasMagicInk) items.Add("魔法墨水"); if (f.canUnderstandDwarves) items.Add("矮人语"); return string.Join(", ", items); } catch { return ""; } }
+        private static string GetCollectionsSummary() { try { var f = Game1.player; if (f == null) return ""; int a = 0, fi = 0, c = 0; try { var mp = typeof(Farmer).GetField("museumPieces")?.GetValue(f); if (mp != null) { var pairs = mp.GetType().GetProperty("Pairs")?.GetValue(mp); if (pairs is System.Collections.IEnumerable ie) foreach (var p in ie) { var v = p?.GetType().GetProperty("Value")?.GetValue(p); if (v is bool b && b) a++; } } } catch { } try { var fc = typeof(Farmer).GetField("fishCaught")?.GetValue(f); if (fc != null) { var vals = fc.GetType().GetProperty("Values")?.GetValue(fc); if (vals is System.Collections.IEnumerable ie) foreach (var v in ie) { var b = v?.GetType().GetProperty("Value")?.GetValue(v); if (b is bool bb && bb) fi++; } } } catch { } try { var rc = typeof(Farmer).GetField("recipesCooked")?.GetValue(f); if (rc != null) { var vals = rc.GetType().GetProperty("Values")?.GetValue(rc); if (vals is System.Collections.IEnumerable ie) foreach (var v in ie) { var nv = v?.GetType().GetProperty("Value")?.GetValue(v); if (nv is int ni && ni > 0) c++; } } } catch { } if (a == 0 && fi == 0 && c == 0) return ""; return $"文物{a}件 鱼{fi}种 菜谱{c}道"; } catch { return ""; } }
+
         private static int CountNonNullItems(Farmer f) { int c = 0; for (int i = 0; i < f.Items.Count; i++) if (f.Items[i] != null) c++; return c; }
         public static bool IsQuestion(string text)
         {
