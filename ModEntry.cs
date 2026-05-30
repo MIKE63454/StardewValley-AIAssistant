@@ -188,6 +188,7 @@ namespace AIAssistant
                 fullResponse = Sanitize(fullResponse);
                 history.Add(new ChatMessage("assistant", fullResponse));
                 ShowChat(_config.NamePrefix + " " + fullResponse, Color.Gold);
+                try { Game1.playSound("newArtifact"); } catch { }
 
                 if (history.Count > _config.HistoryLength * 2)
                 {
