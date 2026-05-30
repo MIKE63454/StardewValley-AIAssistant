@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -176,21 +176,29 @@ namespace AIAssistant
                 // === Tier 3: Full deep context ===
                 if (tier >= 3)
                 {
-                    // Crops
-                    var crops = GetCropSummary();
-                    if (!string.IsNullOrEmpty(crops)) { p.Add(""); p.Add("=== 作物 ==="); p.AddRange(crops.Split('\n')); }
+                    // Skill XP progress
+                    var skills = GetSkillProgress(f);
+                    if (!string.IsNullOrEmpty(skills)) { p.Add(""); p.Add("=== 技能经验 ==="); p.AddRange(skills.Split('\n')); }
+
+                    // Crops with price/growth
+                    var crops = GetCropDetail();
+                    if (!string.IsNullOrEmpty(crops)) { p.Add(""); p.Add("=== 作物详情 ==="); p.AddRange(crops.Split('\n')); }
 
                     // Tool upgrades
                     var tools = GetToolUpgradeStatus();
-                    if (!string.IsNullOrEmpty(tools)) { p.Add(""); p.Add("=== 工具 ==="); p.AddRange(tools.Split('\n')); }
+                    if (!string.IsNullOrEmpty(tools)) { p.Add(""); p.Add("=== 工具等级 ==="); p.AddRange(tools.Split('\n')); }
 
-                    // Community Center
-                    var cc = GetCCProgress();
+                    // Community Center details
+                    var cc = GetCCDetail();
                     if (!string.IsNullOrEmpty(cc)) { p.Add(""); p.Add("=== 社区中心 ==="); p.AddRange(cc.Split('\n')); }
 
                     // Museum
                     var museum = GetMuseumProgress();
-                    if (!string.IsNullOrEmpty(museum)) { p.Add(""); p.Add("=== 博物馆/图书馆 ==="); p.AddRange(museum.Split('\n')); }
+                    if (!string.IsNullOrEmpty(museum)) { p.Add(""); p.Add("=== 博物馆 ==="); p.AddRange(museum.Split('\n')); }
+
+                    // Mine monsters
+                    var mine = GetMineMonsters(loc);
+                    if (!string.IsNullOrEmpty(mine)) { p.Add(""); p.Add("=== 矿洞怪物 ==="); p.AddRange(mine.Split('\n')); }
 
                     // Farm buildings
                     var bld = GetFarmBuildings(f);
@@ -321,13 +329,13 @@ namespace AIAssistant
             catch { return null; }
         }
 
-        public async Task<string?> GetDailyTipAsync()
+public async Task<string?> GetDailyTipAsync()
         {
             if (string.IsNullOrWhiteSpace(_config.ApiKey)) return null;
             try
             {
-                var ctx = BuildGameContext();
-                var prompt = GetSystemPrompt() + "\n" + ctx + "\n\n新的一天开始了。根据当前游戏状态，给农民一句简短的早安建议（15字以内），温馨鼓励。只输出建议本身。";
+                var ctx = BuildGameContextTiered(3);
+                var prompt = GetSystemPrompt() + "\n" + ctx + "\n\n新的一天开始了。根据以上游戏状态，给出今日最优行动建议（30-50字），包括：最重要的1件事（优先：节日/生日/社区中心缺失物品/作物成熟）、次要建议（根据天气和运势）、一句话温馨鼓励。只输出建议。";
                 return await _currentProvider.SendSimpleAsync(_config, prompt);
             }
             catch { return null; }
@@ -470,49 +478,137 @@ namespace AIAssistant
             catch { return ""; }
         }
 
-        private static string GetCCProgress()
+        private static string GetCCDetail()
         {
             try
             {
-                // Get bundle data via reflection (SDV 1.6 API differs)
-                var f = Game1.player;
-                if (f == null) return "";
-                int done = 0, total = 0;
-                try
+                var bundleRewards = new Dictionary<string, string>
                 {
-                    var allBundles = typeof(Game1).GetField("netWorldState")?.GetValue(null);
-                    if (allBundles != null)
-                    {
-                        var valProp = allBundles.GetType().GetProperty("Value");
-                        if (valProp != null)
-                        {
-                            var nws = valProp.GetValue(allBundles);
-                            var bundlesField = nws?.GetType().GetField("bundles");
-                            if (bundlesField != null)
-                            {
-                                var bundles = bundlesField.GetValue(nws) as System.Collections.IDictionary;
-                                if (bundles != null)
-                                {
-                                    foreach (System.Collections.DictionaryEntry entry in bundles)
-                                    {
-                                        var items = entry.Value as System.Collections.IList;
-                                        if (items != null)
-                                            foreach (var item in items)
-                                            { total++; if (item is bool b && b) done++; }
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    ["Pantry"] = "茶水间(作物/动物/工匠品)",
+                    ["CraftsRoom"] = "工艺室(采集品)",
+                    ["FishTank"] = "鱼缸(各种鱼/蟹笼)",
+                    ["BoilerRoom"] = "锅炉室(矿石/怪物掉落)",
+                    ["Bulletin"] = "布告栏(烹饪/染料/饲料)",
+                    ["Vault"] = "金库(共42,500g)",
+                };
+                var bundlesObj = Game1.netWorldState.Value.Bundles;
+                if (bundlesObj == null) return "";
+                var bundles = bundlesObj as System.Collections.IDictionary;
+                if (bundles == null) return "";
+                var rooms = new Dictionary<string, (int done, int total)>();
+                foreach (System.Collections.DictionaryEntry de in bundles)
+                {
+                    var key = de.Key?.ToString() ?? "";
+                    if (string.IsNullOrEmpty(key)) continue;
+                    var parts = key.Split('/');
+                    var room = parts[0];
+                    var arr = de.Value as System.Collections.IList;
+                    if (arr == null) continue;
+                    int done = 0;
+                    foreach (var item in arr) { if (item is bool b && b) done++; else if (item is Netcode.NetBool nb && nb.Value) done++; }
+                    if (rooms.ContainsKey(room)) { var (d, t) = rooms[room]; rooms[room] = (d + done, t + arr.Count); }
+                    else rooms[room] = (done, arr.Count);
                 }
-                catch { }
-                if (total == 0) return "";
-                return "捐献进度:" + done + "/" + total + " (缺" + (total - done) + "个)";
+                if (rooms.Count == 0) return "";
+                var lines = new List<string>();
+                foreach (var kv in rooms)
+                {
+                    var name = bundleRewards.ContainsKey(kv.Key) ? bundleRewards[kv.Key] : kv.Key;
+                    lines.Add(kv.Key + "：" + kv.Value.done + "/" + kv.Value.total + (kv.Value.done >= kv.Value.total ? " [完成]" : ""));
+                }
+                return string.Join("\n", lines);
             }
             catch { return ""; }
         }
 
-        private static string GetMuseumProgress()
+private static string GetSkillProgress(Farmer f)
+        {
+            try
+            {
+                int[] thresholds = { 100, 380, 770, 1300, 2150, 3300, 4800, 6900, 10000, 15000 };
+                string[] names = { "农耕", "采矿", "采集", "钓鱼", "战斗" };
+                var parts = new List<string>();
+                for (int i = 0; i < 5 && i < f.experiencePoints.Length; i++)
+                {
+                    int xp = f.experiencePoints[i];
+                    int lvl = i switch { 0 => f.farmingLevel.Value, 1 => f.miningLevel.Value, 2 => f.foragingLevel.Value, 3 => f.fishingLevel.Value, 4 => f.combatLevel.Value, _ => 0 };
+                    int next = lvl < thresholds.Length ? thresholds[lvl] : 15000;
+                    int pct = lvl >= 10 ? 100 : (int)(xp * 100.0 / next);
+                    parts.Add(names[i] + lvl + "级(" + xp + "/" + next + " " + pct + "%)");
+                }
+                return string.Join(" | ", parts);
+            }
+            catch { return ""; }
+        }
+
+        private static string GetCropDetail()
+        {
+            try
+            {
+                var farm = Game1.getFarm();
+                if (farm == null) return "";
+                var lines = new List<string>();
+                foreach (var terrain in farm.terrainFeatures.Values)
+                {
+                    if (terrain is StardewValley.TerrainFeatures.HoeDirt dirt && dirt.crop != null)
+                    {
+                        var c = dirt.crop;
+                        var phase = c.currentPhase.Value;
+                        var totalPhases = c.phaseDays.Count - 1;
+                        var itemId = c.indexOfHarvest.Value;
+                        string price = "";
+                        try
+                        {
+                            if (Game1.objectData != null && Game1.objectData.TryGetValue(itemId.ToString(), out var objData))
+                                price = objData.Price > 0 ? "卖" + objData.Price + "g" : "";
+                        }
+                        catch { }
+                        string growth = "";
+                        if (c.phaseDays != null && c.phaseDays.Count > 0)
+                        {
+                            int totalDays = 0; for (int i = 0; i < c.phaseDays.Count; i++) totalDays += c.phaseDays[i];
+                            int remainDays = 0; for (int i = phase; i < c.phaseDays.Count && i > 0; i++) remainDays += c.phaseDays[i];
+                            growth = totalDays + "天熟/剩" + (phase >= totalPhases ? 0 : Math.Max(1, remainDays)) + "天";
+                        }
+                        var txt = c.indexOfHarvest.Value + " " + growth + (string.IsNullOrEmpty(price) ? "" : " " + price);
+                        if (c.dead.Value) txt += " [枯]";
+                        lines.Add(txt);
+                    }
+                }
+                if (lines.Count == 0) return "";
+                var groups = lines.GroupBy(x => x).Select(g => g.Key + "x" + g.Count());
+                return "共" + lines.Count + "株：" + string.Join(", ", groups.Take(15));
+            }
+            catch { return ""; }
+        }
+
+        private static string GetMineMonsters(object? location)
+        {
+            try
+            {
+                if (location == null) return "";
+                int ml = 0;
+                var p = location.GetType().GetProperty("mineLevel");
+                if (p != null) ml = (int)(p.GetValue(location) ?? 0);
+                if (ml == 0) { var fld = location.GetType().GetField("mineLevel"); if (fld != null) ml = (int)(fld.GetValue(location) ?? 0); }
+                if (ml <= 0) return "";
+                if (ml <= 10) return "层数" + ml + " 绿史莱姆/掘地虫/苍蝇。建议：任意武器";
+                if (ml <= 20) return "层数" + ml + " 绿史莱姆/掘地虫/苍蝇/石蟹。建议：铜剑+";
+                if (ml <= 30) return "层数" + ml + " 绿史莱姆/石蟹/掘地虫。建议：铜剑+";
+                if (ml <= 40) return "层数" + ml + " 石魔偶/石蟹/蝙蝠。建议：铁剑+";
+                if (ml <= 50) return "层数" + ml + " 冰史莱姆/冰蝙蝠/煤精灵。建议：铁剑+";
+                if (ml <= 60) return "层数" + ml + " 冰史莱姆/冰蝙蝠/幽灵。建议：铁剑+";
+                if (ml <= 70) return "层数" + ml + " 冰史莱姆/煤精灵/幽灵/骷髅。建议：金剑+";
+                if (ml <= 80) return "层数" + ml + " 暗影萨满/暗影蛮兵/骷髅。建议：金剑+";
+                if (ml <= 90) return "层数" + ml + " 暗影萨满/暗影蛮兵/熔岩蟹/红史莱姆。建议：金剑+火焰戒指";
+                if (ml <= 100) return "层数" + ml + " 暗影萨满/暗影蛮兵/熔岩蟹。建议：金剑+";
+                if (ml <= 110) return "层数" + ml + " 暗影萨满/暗影蛮兵/熔岩蟹。建议：金剑+";
+                return "层数" + ml + " 暗影蛮兵/熔岩蟹。建议：熔岩武士刀/银河剑";
+            }
+            catch { return ""; }
+        }
+
+                private static string GetMuseumProgress()
         {
             try
             {
