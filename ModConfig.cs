@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using StardewModdingAPI;
 
 namespace AIAssistant
@@ -29,6 +29,7 @@ namespace AIAssistant
         public bool InjectGameContext { get; set; } = true;
         public bool DailyTips { get; set; } = true;
         public SButton ConfigKey { get; set; } = SButton.K;
+        public SButton HistoryKey { get; set; } = SButton.C;
 
         public static ProviderPreset[] Presets => new[]
         {

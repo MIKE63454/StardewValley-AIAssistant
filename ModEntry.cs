@@ -18,6 +18,7 @@ namespace AIAssistant
         private ModConfig _config = null!;
         private AIService _aiService = null!;
         private Dictionary<long, List<ChatMessage>> _playerHistories = new();
+        private List<ChatHistoryEntry> _chatHistory = new();
         private bool _isProcessing;
         private static ModEntry? _instance;
         private bool _dailyTipShownToday;
@@ -130,6 +131,7 @@ namespace AIAssistant
                     return;
                 }
                 _instance._pendingMessage = null;
+                _instance.RecordMessage(text, false, pn);
                 _ = _instance.ProcessMessageAsync(text, pn, sourceFarmer);
             }
             catch (Exception ex) { _instance.Monitor.Log("Prefix: " + ex.Message, LogLevel.Error); }
@@ -186,6 +188,7 @@ namespace AIAssistant
                 if (fullResponse == null) { ShowChat(_config.NamePrefix + " API请求失败", Color.Red); return; }
 
                 fullResponse = Sanitize(fullResponse);
+                RecordMessage(fullResponse, true);
                 history.Add(new ChatMessage("assistant", fullResponse));
                 ShowChat(_config.NamePrefix + " " + fullResponse, Color.Gold);
                 try { Game1.playSound("newArtifact"); } catch { }
@@ -254,6 +257,7 @@ namespace AIAssistant
                     kv => kv.Value.Select(m => new ChatMessageData { Role = m.Role, Content = m.Content, PlayerName = m.PlayerName }).ToList())
             };
             Helper.Data.WriteSaveData("ai-conversation", data);
+            Helper.Data.WriteSaveData("ai-chathistory", new ChatHistorySaveData { Entries = _chatHistory });
         }
 
         private void OnSaveLoaded(object? sender, SaveLoadedEventArgs e)
@@ -272,7 +276,13 @@ namespace AIAssistant
                     Monitor.Log("Loaded " + _playerHistories.Count + " player histories", LogLevel.Debug);
                 }
             }
-            catch (Exception ex) { Monitor.Log("Load failed: " + ex.Message, LogLevel.Debug); }
+            catch (Exception ex) { Monitor.Log("Load fail: " + ex.Message, LogLevel.Debug); }
+            try
+            {
+                var ch = Helper.Data.ReadSaveData<ChatHistorySaveData>("ai-chathistory");
+                if (ch?.Entries != null) _chatHistory = ch.Entries;
+            }
+            catch (Exception ex) { Monitor.Log("Ch load fail: " + ex.Message, LogLevel.Debug); }
         }
 
         private static AITone DetectTone(string msg)
@@ -285,7 +295,14 @@ namespace AIAssistant
             return _instance!._config.Tone;
         }
 
+        private void RecordMessage(string t, bool ai, string s = "")
+        { if (string.IsNullOrWhiteSpace(t)) return;
+            _chatHistory.Add(new ChatHistoryEntry(t, ai,
+                string.IsNullOrEmpty(s) ? (ai ? _config.NamePrefix : "You") : s,
+                DateTime.Now.ToString("HH:mm"))); }
+
         private void OnDayEnding(object? sender, DayEndingEventArgs e) { Helper.WriteConfig(_config); }
+
 
         private void OnModMessageReceived(object? sender, ModMessageReceivedEventArgs e)
         {
@@ -371,9 +388,12 @@ namespace AIAssistant
         }
 
         private void OnButtonPressed(object? sender, ButtonPressedEventArgs e)
-        {
-            if (!Context.IsPlayerFree || e.Button != _config.ConfigKey) return;
-            Helper.Input.Suppress(e.Button); OpenConfigMenu();
+        { if (!Context.IsPlayerFree) return;
+            if (e.Button == _config.ConfigKey)
+            { Helper.Input.Suppress(e.Button); OpenConfigMenu(); }
+            else if (e.Button == _config.HistoryKey)
+            { Helper.Input.Suppress(e.Button);
+                Game1.activeClickableMenu = new ChatHistoryMenu(new List<ChatHistoryEntry>(_chatHistory)); }
         }
 
         // ============================== GMCM ==============================
@@ -412,6 +432,7 @@ namespace AIAssistant
                 GmcmCall(t, "AddNumberOption", IntTypes, ModManifest, F(() => _config.MaxTokens), A<int>(v => _config.MaxTokens = v), F("最大 Token"), F("AI 回复最大长度"), 50, 4096, 50, null, "");
                 GmcmCall(t, "AddNumberOption", FloatTypes, ModManifest, F(() => _config.Temperature), A<float>(v => _config.Temperature = v), F("温度"), F("0=严谨 2=创意"), 0f, 2f, 0.1f, null, "");
                 GmcmCall(t, "AddKeybind", null, ModManifest, F(() => _config.ConfigKey), A<SButton>(v => _config.ConfigKey = v), F("快捷键"), F("打开配置的按键"), "");
+                GmcmCall(t, "AddKeybind", null, ModManifest, F(() => _config.HistoryKey), A<SButton>(v => _config.HistoryKey = v), F("聊天记录键"), F("打开聊天历史记录的按键"), "");
                 GmcmCall(t, "AddBoolOption", null, ModManifest, F(() => _config.DebugMode), A<bool>(v => _config.DebugMode = v), F("调试模式"), F("在控制台显示调试信息"), "");
 
                 Monitor.Log("GMCM setup complete.", LogLevel.Info);
