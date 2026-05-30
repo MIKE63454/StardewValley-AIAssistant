@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -284,26 +284,7 @@ namespace AIAssistant
             return _instance!._config.Tone;
         }
 
-        private void OnDayEnding(object? sender, DayEndingEventArgs e)
-        {
-            Helper.WriteConfig(_config);
-            if (_config.DailyTips && _config.Enabled && !string.IsNullOrWhiteSpace(_config.ApiKey) && Game1.player != null)
-                _ = AutoDiaryAsync();
-        }
-
-        private async Task AutoDiaryAsync()
-        {
-            try
-            {
-                var ctx = _aiService.BuildGameContext();
-                var r = await _aiService.SendChatAsync(new List<ChatMessage> { new ChatMessage("user", "用中文写一段今天在鹈鹕镇的简短日记（80字以内，第一人称，温馨口吻）。只输出日记内容。\n\n" + ctx) });
-                if (r != null)
-                    try { System.IO.File.AppendAllText(System.IO.Path.Combine(Helper.DirectoryPath, "diary.txt"), "\n\n=== 第" + Game1.player?.yearForSaveGame + "年 " + Game1.currentSeason + "第" + Game1.player?.dayOfMonthForSaveGame + "天 ===\n" + r); } catch { }
-            }
-            catch { }
-        }
-
-        // ============================== Multiplayer Messages ==============================
+        private void OnDayEnding(object? sender, DayEndingEventArgs e) { Helper.WriteConfig(_config); }
 
         private void OnModMessageReceived(object? sender, ModMessageReceivedEventArgs e)
         {
@@ -424,7 +405,7 @@ namespace AIAssistant
                 GmcmCall(t, "AddTextOption", null, ModManifest, F(() => _config.NamePrefix), A<string>(v => _config.NamePrefix = v), F("AI 显示名称"), F("AI 在聊天中的前缀"), null, null, "");
                 GmcmCall(t, "AddNumberOption", IntTypes, ModManifest, F(() => _config.HistoryLength), A<int>(v => _config.HistoryLength = v), F("对话记忆"), F("保留的对话历史条数"), 0, 100, 5, null, "");
                 GmcmCall(t, "AddBoolOption", null, ModManifest, F(() => _config.InjectGameContext), A<bool>(v => _config.InjectGameContext = v), F("游戏上下文"), F("让 AI 知道当前游戏状态"), "");
-                GmcmCall(t, "AddBoolOption", null, ModManifest, F(() => _config.DailyTips), A<bool>(v => _config.DailyTips = v), F("每日提示 & 日记"), F("每天清晨 AI 给出建议，睡前自动写日记"), "");
+                GmcmCall(t, "AddBoolOption", null, ModManifest, F(() => _config.DailyTips), A<bool>(v => _config.DailyTips = v), F("每日提示"), F("每天清晨 AI 给出温馨建议"), "");
 
                 GmcmCall(t, "AddSectionTitle", null, ModManifest, F("高级"), F(""));
                 GmcmCall(t, "AddNumberOption", IntTypes, ModManifest, F(() => _config.MaxTokens), A<int>(v => _config.MaxTokens = v), F("最大 Token"), F("AI 回复最大长度"), 50, 4096, 50, null, "");
