@@ -1,4 +1,4 @@
-﻿# AI Assistant - 星露谷物语 AI 助手
+# AI Assistant - 星露谷物语 AI 助手
 
 [![SMAPI](https://img.shields.io/badge/SMAPI-4.0+-blue)](https://smapi.io)
 [![SDV](https://img.shields.io/badge/Stardew%20Valley-1.6-green)](https://www.stardewvalley.net)
@@ -210,4 +210,4 @@ dotnet build
 依赖：.NET 6.0 SDK，游戏 DLL 通过 `<HintPath>` 直接引用。
 
 ---
-**版本**: 1.1.0 | **作者**: Codex
+**版本**: 1.1.0 | **作者**: MIEK+vibecoding
